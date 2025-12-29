@@ -3,6 +3,7 @@ package com.example.userservice.service.impl;
 
 import com.example.userservice.dto.UserRequest;
 import com.example.userservice.dto.UserResponse;
+import com.example.userservice.dto.UpdateUserRequest;
 import com.example.userservice.dto.WorldTimeResponse;
 import com.example.userservice.exception.UserNotFoundException;
 import com.example.userservice.model.User;
@@ -12,6 +13,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
@@ -102,5 +105,44 @@ public class UserServiceImpl implements UserService {
         );
     }
 
+    @Override
+    public void deleteUser(Long id) {
+        boolean exists = userRepository.existsById(id);
+        if (!exists) {
+            throw new UserNotFoundException("User not found with id: " + id);
+        }
+        userRepository.deleteById(id);
+    }
+
+    @Override
+    public UserResponse updateUser(Long id, UpdateUserRequest request) {
+
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
+
+        // Only update non-null fields (partial update)
+        if (request.getUsername() != null) {
+            user.setUsername(request.getUsername());
+        }
+        if (request.getLastName() != null) {
+            user.setLastName(request.getLastName());
+        }
+        if (request.getAge() != null) {
+            user.setAge(request.getAge());
+        }
+
+        OffsetDateTime newTime = fetchCurrentKolkataTimeOrFallback();
+        user.setCreatedAt(newTime);
+
+        User saved = userRepository.save(user);
+        return mapToResponse(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<UserResponse> getUsers(Pageable pageable) {
+        Page<User> page = userRepository.findAll(pageable);
+        return page.map(this::mapToResponse);
+    }
     // you can keep getUserByUsername etc. unchanged
 }
